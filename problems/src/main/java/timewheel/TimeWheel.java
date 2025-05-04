@@ -28,6 +28,7 @@ public class TimeWheel {
     private Queue<TimeTask>[] slots;
     // 下一层时间轮，比如第一层可以是以1s为精度，第二层是60s为精度，这样两层时间轮共计120个槽可以存放3600s内的待触发任务，否则单层的话需要3600个槽
     private TimeWheel nextLayer;
+    // 上一层时间轮，用于将任务重新放入上一层时间轮
     private TimeWheel preLayer;
     private ExecutorService executorService;
 
@@ -47,12 +48,13 @@ public class TimeWheel {
     public void addTask(int time, Runnable runnable) {
         if (time / interval > slotNum) {
             if (nextLayer != null) {
+                // 下一层添加的时候需要延迟时间加上当前轮的时间
                 nextLayer.addTask(time + interval * currentSlot, runnable);
             } else {
                 System.out.println("no next layer.");
             }
         } else {
-            int slot = (currentSlot +  (time - interval) / interval) % slotNum;
+            int slot = (currentSlot + (time - interval) / interval) % slotNum;
             slots[slot].add(new TimeTask(time, runnable));
         }
     }
@@ -85,6 +87,8 @@ public class TimeWheel {
         Queue<TimeTask> tasks = slots[currentSlot];
         for (TimeTask task : tasks) {
             if (preLayer != null) {
+                // 如果有上一层时间轮，那么tick本时间轮时，需要把任务重新放入上一层时间轮，最终会放到精度最高的那一层
+                // 这里的delay需要转换为上一层的精度，即取模时间范围，比如分钟放入秒，取模60，小时放入分钟，取模3600
                 task.delay = task.delay % (preLayer.interval * preLayer.slotNum);
                 preLayer.addTask(task);
             } else if (executorService != null) {
@@ -96,6 +100,7 @@ public class TimeWheel {
         tasks.clear();
         currentSlot = (currentSlot + 1) % slotNum;
 
+        //  每轮时间轮执行完毕，tick下一层时间轮
         if (currentSlot == 0 && nextLayer != null) {
             nextLayer.tick();
         }
@@ -131,28 +136,51 @@ public class TimeWheel {
 
 
         // 双层60s，加60分钟
+//        TimeWheel secondWheel = new TimeWheel(60, 1);
+//        TimeWheel minuteWheel = new TimeWheel(60, 60); // 每60s tick一次，即分钟
+//        secondWheel.setNextLayer(minuteWheel);
+//        secondWheel.start();
+//
+//        secondWheel.addTask(5, () -> System.out.println("5s task run at:" + new Date()));
+//        System.out.println("add 5s task at:" + new Date());
+//        secondWheel.addTask(6, () -> System.out.println("6s task run at:" + new Date()));
+//        System.out.println("add 6s task at:" + new Date());
+//        secondWheel.addTask(10, () -> System.out.println("10s task run at:" + new Date()));
+//        System.out.println("add 10s task at:" + new Date());
+//        secondWheel.addTask(70, () -> System.out.println("70s task run at:" + new Date()));
+//        System.out.println("add 70s task at:" + new Date());
+//        secondWheel.addTask(125, () -> System.out.println("125s task run at:" + new Date()));
+//        System.out.println("add 125s task at:" + new Date());
+//        Thread.sleep(10000);
+//        secondWheel.addTask(10, () -> System.out.println("10s task run at:" + new Date()));
+//        System.out.println("add 10s task at:" + new Date());
+//        secondWheel.addTask(70, () -> System.out.println("70s task run at:" + new Date()));
+//        System.out.println("add 70s task at:" + new Date());
+
+        // 三层，时分秒
         TimeWheel secondWheel = new TimeWheel(60, 1);
-        TimeWheel minuteWheel = new TimeWheel(60, 60); // 每60s tick一次，即分钟
+        TimeWheel minuteWheel = new TimeWheel(60, 60);
+        TimeWheel hourWheel = new TimeWheel(24, 60 * 60);
         secondWheel.setNextLayer(minuteWheel);
+        minuteWheel.setNextLayer(hourWheel);
         secondWheel.start();
 
-        secondWheel.addTask(5, () -> System.out.println("5s task run at:" + new Date()));
-        System.out.println("add 5s task at:" + new Date());
-        secondWheel.addTask(6, () -> System.out.println("6s task run at:" + new Date()));
-        System.out.println("add 6s task at:" + new Date());
         secondWheel.addTask(10, () -> System.out.println("10s task run at:" + new Date()));
         System.out.println("add 10s task at:" + new Date());
         secondWheel.addTask(70, () -> System.out.println("70s task run at:" + new Date()));
         System.out.println("add 70s task at:" + new Date());
-        secondWheel.addTask(125, () -> System.out.println("125s task run at:" + new Date()));
-        System.out.println("add 125s task at:" + new Date());
-        Thread.sleep(10000);
-        secondWheel.addTask(10, () -> System.out.println("10s task run at:" + new Date()));
-        System.out.println("add 10s task at:" + new Date());
-        secondWheel.addTask(70, () -> System.out.println("70s task run at:" + new Date()));
-        System.out.println("add 70s task at:" + new Date());
+        secondWheel.addTask(3610, () -> System.out.println("3610s task run at:" + new Date()));
+        System.out.println("add 3610s task at:" + new Date());
 
-        Thread.sleep(2000000);
+        Thread.sleep(100000);
+        secondWheel.addTask(10, () -> System.out.println("10s task run at:" + new Date()));
+        System.out.println("add 10s task at:" + new Date());
+        secondWheel.addTask(70, () -> System.out.println("70s task run at:" + new Date()));
+        System.out.println("add 70s task at:" + new Date());
+        secondWheel.addTask(3610, () -> System.out.println("3610s task run at:" + new Date()));
+        System.out.println("add 3610s task at:" + new Date());
+
+        Thread.sleep(20000000);
     }
 
 }
